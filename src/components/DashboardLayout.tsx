@@ -72,19 +72,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
       {/* Mobile Header */}
         <div className="md:hidden bg-card border-b border-border p-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center overflow-hidden">
-            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <rect width="24" height="24" rx="6" fill="url(#g)" />
-              <path d="M7 12h10" stroke="#fff" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-              <path d="M7 8h10" stroke="#fff" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" opacity="0.6"/>
-              <defs>
-                <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
-                  <stop offset="0" stopColor="#E97451" />
-                  <stop offset="1" stopColor="#F6A623" />
-                </linearGradient>
-              </defs>
-            </svg>
-          </div>
+          <img src="/logo.svg" alt="App logo" className="w-10 h-10 rounded-xl object-contain bg-white p-1" />
           <div>
             <h1 className="font-display font-semibold text-lg">Atul Vidyajyot</h1>
           </div>
@@ -115,19 +103,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
         {/* Desktop Header */}
         <div className="hidden md:block p-6 border-b border-border">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center overflow-hidden">
-              <svg width="40" height="40" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <rect width="24" height="24" rx="6" fill="url(#g2)" />
-                <path d="M7 12h10" stroke="#fff" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                <path d="M7 8h10" stroke="#fff" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" opacity="0.6"/>
-                <defs>
-                  <linearGradient id="g2" x1="0" y1="0" x2="1" y2="1">
-                    <stop offset="0" stopColor="#E97451" />
-                    <stop offset="1" stopColor="#F6A623" />
-                  </linearGradient>
-                </defs>
-              </svg>
-            </div>
+            <img src="/logo.svg" alt="App logo" className="w-10 h-10 rounded-xl object-contain bg-white p-1" />
             <div>
               <h1 className="font-display font-semibold text-lg">Atul Vidyajyot</h1>
               <p className="text-xs text-muted-foreground">Management System</p>
