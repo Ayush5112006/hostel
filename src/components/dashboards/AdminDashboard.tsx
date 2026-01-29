@@ -1,8 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
-import { Users, CalendarCheck, CalendarX, Home, AlertCircle, Loader2 } from 'lucide-react';
+import { Users, CalendarCheck, CalendarX, Home, AlertCircle } from 'lucide-react';
 import { format } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
 
@@ -36,7 +35,7 @@ export default function AdminDashboard() {
   });
   const [recentAttendance, setRecentAttendance] = useState<RecentAttendance[]>([]);
   const [allStudents, setAllStudents] = useState<any[]>([]);
-  const [isFillingNotChecked, setIsFillingNotChecked] = useState(false);
+  
 
   useEffect(() => {
     fetchStats();
@@ -139,56 +138,7 @@ export default function AdminDashboard() {
     );
   };
 
-  const fillNotChecked = async () => {
-    const today = new Date().toISOString().split('T')[0];
-    setIsFillingNotChecked(true);
-
-    try {
-      // Get students who haven't been marked yet
-      const notCheckedStudents = allStudents.filter(
-        s => !recentAttendance.find(a => a.profiles.email === s.profiles?.email)
-      );
-
-      if (notCheckedStudents.length === 0) {
-        toast({
-          title: 'Info',
-          description: 'All students are already checked',
-        });
-        setIsFillingNotChecked(false);
-        return;
-      }
-
-      // Mark all not-checked students as absent
-      for (const student of notCheckedStudents) {
-        await supabase
-          .from('attendance')
-          .insert({
-            user_id: student.user_id,
-            date: today,
-            status: 'absent',
-            marked_at: new Date().toISOString(),
-          });
-      }
-
-      toast({
-        title: 'Success',
-        description: `Marked ${notCheckedStudents.length} student(s) as absent`,
-      });
-
-      // Refresh data
-      await fetchStats();
-      await fetchRecentAttendance();
-    } catch (error) {
-      console.error('Error filling not checked:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to mark not checked students',
-        variant: 'destructive',
-      });
-    }
-
-    setIsFillingNotChecked(false);
-  };
+  
 
   const statCards = [
     { title: 'Present', value: stats.present, icon: CalendarCheck, color: 'bg-success' },
@@ -231,22 +181,7 @@ export default function AdminDashboard() {
             <CardTitle className="font-display">Today's Attendance</CardTitle>
             <CardDescription>Attendance grouped by status for {format(new Date(), 'MMM d, yyyy')}</CardDescription>
           </div>
-          {stats.notChecked > 0 && (
-            <Button
-              onClick={fillNotChecked}
-              disabled={isFillingNotChecked}
-              className="bg-warning hover:bg-warning/90"
-            >
-              {isFillingNotChecked ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Filling...
-                </>
-              ) : (
-                `Fill Not Checked (${stats.notChecked})`
-              )}
-            </Button>
-          )}
+          {/* Removed Fill Not Checked button */}
         </CardHeader>
         <CardContent>
           {allStudents.length === 0 ? (
