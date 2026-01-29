@@ -1,13 +1,16 @@
 import { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
-import { Users, CalendarCheck, CalendarX, Home } from 'lucide-react';
+import { Users, CalendarCheck, CalendarX, Home, AlertCircle, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
+import { useToast } from '@/hooks/use-toast';
 
 interface TodayStats {
   present: number;
   absent: number;
   leave: number;
+  notChecked: number;
   total: number;
 }
 
@@ -15,6 +18,7 @@ interface RecentAttendance {
   id: string;
   status: string;
   date: string;
+  marked_at: string;
   profiles: {
     full_name: string;
     email: string;
@@ -22,13 +26,17 @@ interface RecentAttendance {
 }
 
 export default function AdminDashboard() {
+  const { toast } = useToast();
   const [stats, setStats] = useState<TodayStats>({
     present: 0,
     absent: 0,
     leave: 0,
+    notChecked: 0,
     total: 0,
   });
   const [recentAttendance, setRecentAttendance] = useState<RecentAttendance[]>([]);
+  const [allStudents, setAllStudents] = useState<any[]>([]);
+  const [isFillingNotChecked, setIsFillingNotChecked] = useState(false);
 
   useEffect(() => {
     fetchStats();
@@ -52,28 +60,69 @@ export default function AdminDashboard() {
       .select('status')
       .eq('date', today);
 
+    const presentCount = attendance?.filter(a => a.status === 'present').length || 0;
+    const absentCount = attendance?.filter(a => a.status === 'absent').length || 0;
+    const leaveCount = attendance?.filter(a => a.status === 'leave').length || 0;
+    const notCheckedCount = Math.max(0, totalStudents - (presentCount + absentCount + leaveCount));
+
     setStats({
-      present: attendance?.filter(a => a.status === 'present').length || 0,
-      absent: attendance?.filter(a => a.status === 'absent').length || 0,
-      leave: attendance?.filter(a => a.status === 'leave').length || 0,
+      present: presentCount,
+      absent: absentCount,
+      leave: leaveCount,
+      notChecked: notCheckedCount,
       total: totalStudents,
     });
   };
 
   const fetchRecentAttendance = async () => {
-    const { data, error } = await supabase
-      .from('attendance')
-      .select(`
-        id,
-        status,
-        date,
-        profiles!inner(full_name, email)
-      `)
-      .order('marked_at', { ascending: false })
-      .limit(10);
+    const today = new Date().toISOString().split('T')[0];
+    
+    try {
+      // Get all student user IDs
+      const { data: userRoles } = await supabase
+        .from('user_roles')
+        .select('user_id')
+        .eq('role', 'student');
 
-    if (!error && data) {
-      setRecentAttendance(data as unknown as RecentAttendance[]);
+      const userIds = (userRoles || []).map(ur => ur.user_id);
+
+      // Get profiles for these users
+      const { data: profiles } = await supabase
+        .from('profiles')
+        .select('id, full_name, email')
+        .in('id', userIds);
+
+      const studentsData = (profiles || []).map(p => ({
+        user_id: p.id,
+        profiles: p
+      }));
+
+      setAllStudents(studentsData);
+
+      // Get today's attendance
+      const { data: attendance, error: attendanceError } = await supabase
+        .from('attendance')
+        .select('id, status, date, user_id, marked_at')
+        .eq('date', today);
+
+      if (!attendanceError && attendance) {
+        // Merge with profile data
+        const attendanceWithProfiles = attendance.map((a: any) => {
+          const profile = profiles?.find(p => p.id === a.user_id);
+          return {
+            id: a.id,
+            status: a.status,
+            date: a.date,
+            user_id: a.user_id,
+            marked_at: a.marked_at,
+            profiles: profile || { full_name: 'Unknown', email: '' }
+          };
+        });
+
+        setRecentAttendance(attendanceWithProfiles);
+      }
+    } catch (error) {
+      console.error('Error in fetchRecentAttendance:', error);
     }
   };
 
@@ -90,10 +139,62 @@ export default function AdminDashboard() {
     );
   };
 
+  const fillNotChecked = async () => {
+    const today = new Date().toISOString().split('T')[0];
+    setIsFillingNotChecked(true);
+
+    try {
+      // Get students who haven't been marked yet
+      const notCheckedStudents = allStudents.filter(
+        s => !recentAttendance.find(a => a.profiles.email === s.profiles?.email)
+      );
+
+      if (notCheckedStudents.length === 0) {
+        toast({
+          title: 'Info',
+          description: 'All students are already checked',
+        });
+        setIsFillingNotChecked(false);
+        return;
+      }
+
+      // Mark all not-checked students as absent
+      for (const student of notCheckedStudents) {
+        await supabase
+          .from('attendance')
+          .insert({
+            user_id: student.user_id,
+            date: today,
+            status: 'absent',
+            marked_at: new Date().toISOString(),
+          });
+      }
+
+      toast({
+        title: 'Success',
+        description: `Marked ${notCheckedStudents.length} student(s) as absent`,
+      });
+
+      // Refresh data
+      await fetchStats();
+      await fetchRecentAttendance();
+    } catch (error) {
+      console.error('Error filling not checked:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to mark not checked students',
+        variant: 'destructive',
+      });
+    }
+
+    setIsFillingNotChecked(false);
+  };
+
   const statCards = [
     { title: 'Present', value: stats.present, icon: CalendarCheck, color: 'bg-success' },
     { title: 'Absent', value: stats.absent, icon: CalendarX, color: 'bg-destructive' },
     { title: 'On Leave', value: stats.leave, icon: Home, color: 'bg-info' },
+    { title: 'Not Checked', value: stats.notChecked, icon: AlertCircle, color: 'bg-warning' },
     { title: 'Total Students', value: stats.total, icon: Users, color: 'bg-accent' },
   ];
 
@@ -125,32 +226,134 @@ export default function AdminDashboard() {
       </div>
 
       <Card className="mt-8 glass-card">
-        <CardHeader>
-          <CardTitle className="font-display">Recent Attendance</CardTitle>
-          <CardDescription>Latest attendance records from students</CardDescription>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <div>
+            <CardTitle className="font-display">Today's Attendance</CardTitle>
+            <CardDescription>Attendance grouped by status for {format(new Date(), 'MMM d, yyyy')}</CardDescription>
+          </div>
+          {stats.notChecked > 0 && (
+            <Button
+              onClick={fillNotChecked}
+              disabled={isFillingNotChecked}
+              className="bg-warning hover:bg-warning/90"
+            >
+              {isFillingNotChecked ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Filling...
+                </>
+              ) : (
+                `Fill Not Checked (${stats.notChecked})`
+              )}
+            </Button>
+          )}
         </CardHeader>
         <CardContent>
-          {recentAttendance.length === 0 ? (
-            <p className="text-center text-muted-foreground py-8">No attendance records yet</p>
+          {allStudents.length === 0 ? (
+            <p className="text-center text-muted-foreground py-8">No students found</p>
           ) : (
-            <div className="space-y-3">
-              {recentAttendance.map((record) => (
-                <div
-                  key={record.id}
-                  className="flex items-center justify-between p-4 rounded-lg bg-secondary/50"
-                >
-                  <div>
-                    <p className="font-medium">{record.profiles.full_name}</p>
-                    <p className="text-sm text-muted-foreground">{record.profiles.email}</p>
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <span className="text-sm text-muted-foreground">
-                      {format(new Date(record.date), 'MMM d, yyyy')}
-                    </span>
-                    {getStatusBadge(record.status)}
+            <div className="space-y-6">
+              {/* Not Checked Section */}
+              {(recentAttendance.filter(a => !a.status).length > 0 || allStudents.length === recentAttendance.length) && (
+                <div>
+                  <h3 className="text-sm font-semibold text-muted-foreground mb-2">
+                    Not Checked ({allStudents.filter(s => !recentAttendance.find(a => a.profiles.email === s.profiles?.email)).length})
+                  </h3>
+                  <div className="space-y-2">
+                    {allStudents
+                      .filter(s => !recentAttendance.find(a => a.profiles.email === s.profiles?.email))
+                      .map((student) => (
+                        <div key={student.user_id} className="flex items-center justify-between p-3 rounded-lg bg-muted/20">
+                          <div>
+                            <p className="font-medium text-sm">{student.profiles?.full_name}</p>
+                            <p className="text-xs text-muted-foreground">{student.profiles?.email}</p>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <span className="text-xs text-muted-foreground">--:--</span>
+                            <span className="px-2 py-1 rounded-full text-xs font-medium bg-muted text-muted-foreground">
+                              Not Checked
+                            </span>
+                          </div>
+                        </div>
+                      ))}
                   </div>
                 </div>
-              ))}
+              )}
+
+              {/* Absent Section */}
+              {recentAttendance.filter(a => a.status === 'absent').length > 0 && (
+                <div>
+                  <h3 className="text-sm font-semibold text-destructive mb-2">
+                    Absent ({recentAttendance.filter(a => a.status === 'absent').length})
+                  </h3>
+                  <div className="space-y-2">
+                    {recentAttendance.filter(a => a.status === 'absent').map((record) => (
+                      <div key={record.id} className="flex items-center justify-between p-3 rounded-lg bg-destructive/10">
+                        <div>
+                          <p className="font-medium text-sm">{record.profiles.full_name}</p>
+                          <p className="text-xs text-muted-foreground">{record.profiles.email}</p>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <span className="text-xs text-muted-foreground">
+                            {record.marked_at ? format(new Date(record.marked_at), 'h:mm a') : '--:--'}
+                          </span>
+                          {getStatusBadge(record.status)}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Present Section */}
+              {recentAttendance.filter(a => a.status === 'present').length > 0 && (
+                <div>
+                  <h3 className="text-sm font-semibold text-success mb-2">
+                    Present ({recentAttendance.filter(a => a.status === 'present').length})
+                  </h3>
+                  <div className="space-y-2">
+                    {recentAttendance.filter(a => a.status === 'present').map((record) => (
+                      <div key={record.id} className="flex items-center justify-between p-3 rounded-lg bg-success/10">
+                        <div>
+                          <p className="font-medium text-sm">{record.profiles.full_name}</p>
+                          <p className="text-xs text-muted-foreground">{record.profiles.email}</p>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <span className="text-xs text-muted-foreground">
+                            {record.marked_at ? format(new Date(record.marked_at), 'h:mm a') : '--:--'}
+                          </span>
+                          {getStatusBadge(record.status)}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* On Leave Section */}
+              {recentAttendance.filter(a => a.status === 'leave').length > 0 && (
+                <div>
+                  <h3 className="text-sm font-semibold text-info mb-2">
+                    On Leave ({recentAttendance.filter(a => a.status === 'leave').length})
+                  </h3>
+                  <div className="space-y-2">
+                    {recentAttendance.filter(a => a.status === 'leave').map((record) => (
+                      <div key={record.id} className="flex items-center justify-between p-3 rounded-lg bg-info/10">
+                        <div>
+                          <p className="font-medium text-sm">{record.profiles.full_name}</p>
+                          <p className="text-xs text-muted-foreground">{record.profiles.email}</p>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <span className="text-xs text-muted-foreground">
+                            {record.marked_at ? format(new Date(record.marked_at), 'h:mm a') : '--:--'}
+                          </span>
+                          {getStatusBadge(record.status)}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </CardContent>

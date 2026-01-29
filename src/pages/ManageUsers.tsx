@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { supabase } from '@/integrations/supabase/client';
-import { UserPlus, Trash2, Loader2 } from 'lucide-react';
+import { UserPlus, Trash2, Loader2, Edit2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 interface UserWithRole {
@@ -28,6 +28,9 @@ export default function ManageUsers() {
   const [isLoading, setIsLoading] = useState(true);
   const [isCreating, setIsCreating] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editingUser, setEditingUser] = useState<UserWithRole | null>(null);
+  const [newRole, setNewRole] = useState<'admin' | 'student'>('student');
 
   const [newUser, setNewUser] = useState({
     email: '',
@@ -130,11 +133,94 @@ export default function ManageUsers() {
   };
 
   const handleDeleteUser = async (userId: string) => {
-    // Note: In production, you'd use an admin API to delete users
-    toast({
-      title: 'Info',
-      description: 'User deletion requires admin API access. Please contact system administrator.',
-    });
+    if (!confirm('Are you sure you want to delete this user? This action cannot be undone.')) {
+      return;
+    }
+
+    try {
+      // Delete from user_roles first (foreign key constraint)
+      const { error: rolesError } = await supabase
+        .from('user_roles')
+        .delete()
+        .eq('user_id', userId);
+
+      if (rolesError) throw rolesError;
+
+      // Delete from profiles (will cascade delete related records due to ON DELETE CASCADE)
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .delete()
+        .eq('id', userId);
+
+      if (profileError) throw profileError;
+
+      // Refresh the users list
+      await fetchUsers();
+      
+      toast({
+        title: 'Success',
+        description: 'User deleted successfully.',
+      });
+    } catch (error) {
+      console.error('Error deleting user:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to delete user. Please try again.',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleEditRole = (user: UserWithRole) => {
+    setEditingUser(user);
+    setNewRole((user.role as 'admin' | 'student') || 'student');
+    setEditDialogOpen(true);
+  };
+
+  const handleUpdateRole = async () => {
+    if (!editingUser) return;
+
+    try {
+      // Check if role exists for this user
+      const { data: existingRole } = await supabase
+        .from('user_roles')
+        .select('id')
+        .eq('user_id', editingUser.id)
+        .single();
+
+      if (existingRole) {
+        // Update existing role
+        const { error } = await supabase
+          .from('user_roles')
+          .update({ role: newRole })
+          .eq('user_id', editingUser.id);
+
+        if (error) throw error;
+      } else {
+        // Insert new role
+        const { error } = await supabase
+          .from('user_roles')
+          .insert({ user_id: editingUser.id, role: newRole });
+
+        if (error) throw error;
+      }
+
+      toast({
+        title: 'Success',
+        description: 'User role updated successfully.',
+      });
+
+      setEditDialogOpen(false);
+      setEditingUser(null);
+      await fetchUsers();
+    } catch (error) {
+      console.error('Error updating role:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to update user role.',
+        variant: 'destructive',
+      });
+    }
   };
 
   const getRoleBadge = (role: string) => {
@@ -155,11 +241,11 @@ export default function ManageUsers() {
 
   return (
     <DashboardLayout>
-      <div className="p-8">
-        <div className="flex items-center justify-between mb-8">
+      <div className="p-4 md:p-8">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6 md:mb-8">
           <div>
-            <h1 className="text-3xl font-display font-bold">Manage Users</h1>
-            <p className="text-muted-foreground mt-1">
+            <h1 className="text-2xl md:text-3xl font-display font-bold">Manage Users</h1>
+            <p className="text-muted-foreground mt-1 text-sm md:text-base">
               Add, edit, or remove admins and students
             </p>
           </div>
@@ -279,6 +365,14 @@ export default function ManageUsers() {
                         <Button
                           variant="ghost"
                           size="icon"
+                          className="text-primary hover:text-primary"
+                          onClick={() => handleEditRole(user)}
+                        >
+                          <Edit2 className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
                           className="text-destructive hover:text-destructive"
                           onClick={() => handleDeleteUser(user.id)}
                         >
@@ -292,6 +386,40 @@ export default function ManageUsers() {
             )}
           </CardContent>
         </Card>
+
+        {/* Edit Role Dialog */}
+        <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Edit User Role</DialogTitle>
+              <DialogDescription>
+                Update the role for {editingUser?.email}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="editRole">Role</Label>
+                <Select value={newRole} onValueChange={(value) => setNewRole(value as 'admin' | 'student')}>
+                  <SelectTrigger id="editRole">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="admin">Admin</SelectItem>
+                    <SelectItem value="student">Student</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex gap-3 justify-end">
+                <Button variant="outline" onClick={() => setEditDialogOpen(false)}>
+                  Cancel
+                </Button>
+                <Button onClick={handleUpdateRole} className="btn-gradient">
+                  Update Role
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </DashboardLayout>
   );

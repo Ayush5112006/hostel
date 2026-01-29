@@ -32,6 +32,8 @@ export default function Reports() {
   const { role } = useAuth();
   const [date, setDate] = useState<Date>(new Date());
   const [attendance, setAttendance] = useState<AttendanceReport[]>([]);
+  const [allStudents, setAllStudents] = useState<any[]>([]);
+  const [notMarked, setNotMarked] = useState<any[]>([]);
   const [stats, setStats] = useState<DailyStats>({ present: 0, absent: 0, leave: 0 });
   const [isLoading, setIsLoading] = useState(true);
 
@@ -43,25 +45,73 @@ export default function Reports() {
     setIsLoading(true);
     const dateStr = format(date, 'yyyy-MM-dd');
 
-    const { data, error } = await supabase
-      .from('attendance')
-      .select(`
-        id,
-        date,
-        status,
-        profiles!inner(full_name, email)
-      `)
-      .eq('date', dateStr)
-      .order('status');
+    try {
+      // Fetch all student user IDs from user_roles
+      const { data: userRoles } = await supabase
+        .from('user_roles')
+        .select('user_id')
+        .eq('role', 'student');
 
-    if (!error && data) {
-      setAttendance(data as unknown as AttendanceReport[]);
-      setStats({
-        present: data.filter(a => a.status === 'present').length,
-        absent: data.filter(a => a.status === 'absent').length,
-        leave: data.filter(a => a.status === 'leave').length,
-      });
+      const userIds = (userRoles || []).map(ur => ur.user_id);
+
+      // Fetch profiles for these users
+      const { data: profiles } = await supabase
+        .from('profiles')
+        .select('id, full_name, email')
+        .in('id', userIds);
+
+      const studentsData = (profiles || []).map(p => ({
+        user_id: p.id,
+        profiles: p
+      }));
+
+      setAllStudents(studentsData);
+
+      // Fetch attendance records for the date
+      const { data, error } = await supabase
+        .from('attendance')
+        .select('id, date, status, user_id')
+        .eq('date', dateStr);
+
+      if (!error && data) {
+        // Create attendance reports with profile data
+        const attendanceReports = data.map((a: any) => {
+          const profile = profiles?.find(p => p.id === a.user_id);
+          return {
+            id: a.id,
+            date: a.date,
+            status: a.status,
+            user_id: a.user_id,
+            profiles: profile || { full_name: 'Unknown', email: '' }
+          };
+        });
+
+        // Sort by status order: absent, present, leave
+        const statusOrder = { absent: 0, present: 1, leave: 2 };
+        const sorted = attendanceReports.sort((a, b) => 
+          (statusOrder[a.status as keyof typeof statusOrder] ?? 99) - 
+          (statusOrder[b.status as keyof typeof statusOrder] ?? 99)
+        );
+        
+        setAttendance(sorted);
+        
+        // Find students not marked
+        const markedUserIds = new Set(data.map((a: any) => a.user_id));
+        const notMarkedStudents = studentsData
+          .filter(s => !markedUserIds.has(s.user_id));
+        
+        setNotMarked(notMarkedStudents);
+        
+        setStats({
+          present: data.filter(a => a.status === 'present').length,
+          absent: data.filter(a => a.status === 'absent').length,
+          leave: data.filter(a => a.status === 'leave').length,
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching attendance:', error);
     }
+    
     setIsLoading(false);
   };
 
@@ -98,21 +148,22 @@ export default function Reports() {
 
   return (
     <DashboardLayout>
-      <div className="p-8">
-        <div className="flex items-center justify-between mb-8">
+      <div className="p-4 md:p-8">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6 md:mb-8">
           <div>
-            <h1 className="text-3xl font-display font-bold">Attendance Reports</h1>
-            <p className="text-muted-foreground mt-1">
+            <h1 className="text-2xl md:text-3xl font-display font-bold">Attendance Reports</h1>
+            <p className="text-muted-foreground mt-1 text-sm md:text-base">
               View and download daily attendance reports
             </p>
           </div>
 
-          <div className="flex items-center gap-4">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-4 w-full sm:w-auto">
             <Popover>
               <PopoverTrigger asChild>
-                <Button variant="outline" className={cn('justify-start text-left font-normal')}>
+                <Button variant="outline" className={cn('justify-start text-left font-normal w-full sm:w-auto')}>
                   <CalendarIcon className="mr-2 h-4 w-4" />
-                  {format(date, 'PPP')}
+                  <span className="hidden sm:inline">{format(date, 'PPP')}</span>
+                  <span className="sm:hidden">{format(date, 'MMM dd')}</span>
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-auto p-0" align="end">
@@ -163,8 +214,8 @@ export default function Reports() {
         {/* Attendance Table */}
         <Card className="glass-card">
           <CardHeader>
-            <CardTitle className="font-display">
-              Attendance for {format(date, 'MMMM d, yyyy')}
+            <CardTitle className="font-display text-xl md:text-2xl">
+              Attendance for {format(date, 'MMM d, yyyy')}
             </CardTitle>
             <CardDescription>
               {attendance.length} record{attendance.length !== 1 ? 's' : ''} found
@@ -175,31 +226,144 @@ export default function Reports() {
               <div className="flex items-center justify-center py-8">
                 <Loader2 className="w-8 h-8 animate-spin text-primary" />
               </div>
-            ) : attendance.length === 0 ? (
-              <p className="text-center text-muted-foreground py-8">
-                No attendance records for this date
+            ) : attendance.length === 0 && notMarked.length === 0 ? (
+              <p className="text-center text-muted-foreground py-8 text-sm md:text-base">
+                No students found for this date
               </p>
             ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Email</TableHead>
-                    <TableHead>Status</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {attendance.map((record) => (
-                    <TableRow key={record.id}>
-                      <TableCell className="font-medium">
-                        {record.profiles.full_name}
-                      </TableCell>
-                      <TableCell>{record.profiles.email}</TableCell>
-                      <TableCell>{getStatusBadge(record.status)}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+              <div className="space-y-6">
+                {/* Not Marked Section */}
+                {notMarked.length > 0 && (
+                  <div>
+                    <h3 className="text-lg font-semibold text-muted-foreground mb-3 flex items-center gap-2">
+                      <span className="w-2 h-2 bg-muted-foreground rounded-full"></span>
+                      Not Checked ({notMarked.length})
+                    </h3>
+                    <div className="overflow-x-auto">
+                      <Table className="border border-muted/20 rounded-lg">
+                        <TableHeader>
+                          <TableRow className="bg-muted/5">
+                            <TableHead className="text-xs md:text-sm">Name</TableHead>
+                            <TableHead className="hidden sm:table-cell text-xs md:text-sm">Email</TableHead>
+                            <TableHead className="text-xs md:text-sm">Status</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {notMarked.map((record) => (
+                            <TableRow key={record.user_id || record.profiles?.id}>
+                              <TableCell className="font-medium text-sm md:text-base">
+                                {record.profiles?.full_name || 'N/A'}
+                              </TableCell>
+                              <TableCell className="hidden sm:table-cell text-xs md:text-sm">{record.profiles?.email || 'N/A'}</TableCell>
+                              <TableCell className="text-xs md:text-sm">
+                                <span className="px-2 py-1 rounded-full text-xs font-medium bg-muted text-muted-foreground">
+                                  Not Checked
+                                </span>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  </div>
+                )}
+
+                {/* Absent Section */}
+                {attendance.filter(a => a.status === 'absent').length > 0 && (
+                  <div>
+                    <h3 className="text-lg font-semibold text-destructive mb-3 flex items-center gap-2">
+                      <span className="w-2 h-2 bg-destructive rounded-full"></span>
+                      Absent ({stats.absent})
+                    </h3>
+                    <div className="overflow-x-auto">
+                      <Table className="border border-destructive/20 rounded-lg">
+                        <TableHeader>
+                          <TableRow className="bg-destructive/5">
+                            <TableHead className="text-xs md:text-sm">Name</TableHead>
+                            <TableHead className="hidden sm:table-cell text-xs md:text-sm">Email</TableHead>
+                            <TableHead className="text-xs md:text-sm">Status</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {attendance.filter(a => a.status === 'absent').map((record) => (
+                            <TableRow key={record.id}>
+                              <TableCell className="font-medium text-sm md:text-base">
+                                {record.profiles.full_name}
+                              </TableCell>
+                              <TableCell className="hidden sm:table-cell text-xs md:text-sm">{record.profiles.email}</TableCell>
+                              <TableCell className="text-xs md:text-sm">{getStatusBadge(record.status)}</TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  </div>
+                )}
+
+                {/* Present Section */}
+                {attendance.filter(a => a.status === 'present').length > 0 && (
+                  <div>
+                    <h3 className="text-lg font-semibold text-success mb-3 flex items-center gap-2">
+                      <span className="w-2 h-2 bg-success rounded-full"></span>
+                      Present ({stats.present})
+                    </h3>
+                    <div className="overflow-x-auto">
+                      <Table className="border border-success/20 rounded-lg">
+                        <TableHeader>
+                          <TableRow className="bg-success/5">
+                            <TableHead className="text-xs md:text-sm">Name</TableHead>
+                            <TableHead className="hidden sm:table-cell text-xs md:text-sm">Email</TableHead>
+                            <TableHead className="text-xs md:text-sm">Status</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {attendance.filter(a => a.status === 'present').map((record) => (
+                            <TableRow key={record.id}>
+                              <TableCell className="font-medium text-sm md:text-base">
+                                {record.profiles.full_name}
+                              </TableCell>
+                              <TableCell className="hidden sm:table-cell text-xs md:text-sm">{record.profiles.email}</TableCell>
+                              <TableCell className="text-xs md:text-sm">{getStatusBadge(record.status)}</TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  </div>
+                )}
+
+                {/* On Leave Section */}
+                {attendance.filter(a => a.status === 'leave').length > 0 && (
+                  <div>
+                    <h3 className="text-lg font-semibold text-info mb-3 flex items-center gap-2">
+                      <span className="w-2 h-2 bg-info rounded-full"></span>
+                      On Leave ({stats.leave})
+                    </h3>
+                    <div className="overflow-x-auto">
+                      <Table className="border border-info/20 rounded-lg">
+                        <TableHeader>
+                          <TableRow className="bg-info/5">
+                            <TableHead className="text-xs md:text-sm">Name</TableHead>
+                            <TableHead className="hidden sm:table-cell text-xs md:text-sm">Email</TableHead>
+                            <TableHead className="text-xs md:text-sm">Status</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {attendance.filter(a => a.status === 'leave').map((record) => (
+                            <TableRow key={record.id}>
+                              <TableCell className="font-medium text-sm md:text-base">
+                                {record.profiles.full_name}
+                              </TableCell>
+                              <TableCell className="hidden sm:table-cell text-xs md:text-sm">{record.profiles.email}</TableCell>
+                              <TableCell className="text-xs md:text-sm">{getStatusBadge(record.status)}</TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  </div>
+                )}
+              </div>
             )}
           </CardContent>
         </Card>

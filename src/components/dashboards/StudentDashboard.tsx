@@ -21,6 +21,7 @@ export default function StudentDashboard() {
   const [todayStatus, setTodayStatus] = useState<AttendanceStatus | null>(null);
   const [recentRecords, setRecentRecords] = useState<AttendanceRecord[]>([]);
   const [isLoading, setIsLoading] = useState<AttendanceStatus | null>(null);
+  const [isAutoFilling, setIsAutoFilling] = useState(false);
   const [stats, setStats] = useState({ present: 0, absent: 0, leave: 0 });
 
   const today = new Date().toISOString().split('T')[0];
@@ -116,6 +117,20 @@ export default function StudentDashboard() {
     }
   };
 
+  const oneTimeFillPresent = async () => {
+    if (!user || todayStatus) {
+      toast({
+        title: 'Info',
+        description: 'You have already marked your attendance for today',
+      });
+      return;
+    }
+
+    setIsAutoFilling(true);
+    await markAttendance('present');
+    setIsAutoFilling(false);
+  };
+
   const getStatusIcon = (status: AttendanceStatus) => {
     switch (status) {
       case 'present':
@@ -172,15 +187,36 @@ export default function StudentDashboard() {
 
       {/* Today's Status Card */}
       <Card className="glass-card mb-8">
-        <CardHeader>
-          <CardTitle className="font-display">
-            Today's Status - {format(new Date(), 'EEEE, MMMM d')}
-          </CardTitle>
-          <CardDescription>
-            {todayStatus
-              ? 'You can update your status if needed'
-              : 'Mark your attendance for today'}
-          </CardDescription>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <div className="flex-1">
+            <CardTitle className="font-display">
+              Today's Status - {format(new Date(), 'EEEE, MMMM d')}
+            </CardTitle>
+            <CardDescription>
+              {todayStatus
+                ? '✓ Attendance locked - cannot be changed'
+                : 'Mark your attendance for today'}
+            </CardDescription>
+          </div>
+          {!todayStatus && (
+            <Button
+              onClick={oneTimeFillPresent}
+              disabled={isAutoFilling}
+              className="ml-4 bg-success hover:bg-success/90"
+            >
+              {isAutoFilling ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Filling...
+                </>
+              ) : (
+                <>
+                  <Check className="w-4 h-4 mr-2" />
+                  One Time Fill
+                </>
+              )}
+            </Button>
+          )}
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -188,10 +224,12 @@ export default function StudentDashboard() {
               <Button
                 key={option.status}
                 onClick={() => markAttendance(option.status)}
-                disabled={isLoading !== null}
+                disabled={isLoading !== null || (todayStatus !== null && todayStatus !== option.status)}
                 className={`h-auto py-6 flex flex-col items-center gap-2 ${
                   todayStatus === option.status
                     ? option.color + ' ring-2 ring-offset-2 ring-offset-background ring-foreground'
+                    : todayStatus !== null
+                    ? 'bg-muted opacity-50 cursor-not-allowed text-muted-foreground'
                     : 'bg-secondary hover:bg-secondary/80 text-secondary-foreground'
                 }`}
               >

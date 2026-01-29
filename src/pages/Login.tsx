@@ -51,18 +51,18 @@ export default function Login() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-0 left-1/4 w-96 h-96 bg-primary/5 rounded-full blur-3xl" />
-        <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-accent/5 rounded-full blur-3xl" />
+        <div className="absolute top-0 left-1/4 w-64 sm:w-96 h-64 sm:h-96 bg-primary/5 rounded-full blur-3xl" />
+        <div className="absolute bottom-0 right-1/4 w-64 sm:w-96 h-64 sm:h-96 bg-accent/5 rounded-full blur-3xl" />
       </div>
 
       <Card className="w-full max-w-md glass-card animate-slide-up">
         <CardHeader className="text-center space-y-4">
-          <div className="mx-auto w-16 h-16 bg-primary rounded-2xl flex items-center justify-center shadow-lg">
-            <Utensils className="w-8 h-8 text-primary-foreground" />
+          <div className="mx-auto w-12 sm:w-16 h-12 sm:h-16 bg-primary rounded-2xl flex items-center justify-center shadow-lg">
+            <Utensils className="w-6 sm:w-8 h-6 sm:h-8 text-primary-foreground" />
           </div>
           <div>
-            <CardTitle className="text-3xl font-display">Hostel Mess</CardTitle>
-            <CardDescription className="text-base mt-2">
+            <CardTitle className="text-2xl sm:text-3xl font-display">Hostel Mess</CardTitle>
+            <CardDescription className="text-sm sm:text-base mt-2">
               Sign in to manage your mess attendance
             </CardDescription>
           </div>

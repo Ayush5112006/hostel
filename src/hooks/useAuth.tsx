@@ -15,6 +15,10 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+// Session configuration: 2 days
+const SESSION_MAX_AGE = 2 * 24 * 60 * 60; // 2 days in seconds
+const REFRESH_INTERVAL = 60 * 60 * 1000; // 1 hour in milliseconds
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
@@ -35,17 +39,46 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return data?.role as AppRole;
   };
 
-  useEffect(() => {
-    // Set up auth state listener first
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
-        setSession(session);
-        setUser(session?.user ?? null);
+  // Function to save session to localStorage with expiry
+  const saveSessionToStorage = (sessionData: Session | null) => {
+    if (sessionData) {
+      const sessionInfo = {
+        session: sessionData,
+        expiresAt: Date.now() + SESSION_MAX_AGE * 1000,
+      };
+      localStorage.setItem('sb-auth-token', JSON.stringify(sessionInfo));
+      
+      // Set cookie for 2 days
+      const expires = new Date();
+      expires.setDate(expires.getDate() + 2);
+      document.cookie = `sb-auth-session=${JSON.stringify(sessionInfo)}; expires=${expires.toUTCString()}; path=/; SameSite=Lax`;
+    } else {
+      localStorage.removeItem('sb-auth-token');
+      document.cookie = 'sb-auth-session=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/';
+    }
+  };
 
-        if (session?.user) {
-          // Defer role fetch to avoid deadlock
+  // Function to refresh session
+  const refreshSession = async () => {
+    const { data: { session: currentSession }, error } = await supabase.auth.refreshSession();
+    if (!error && currentSession) {
+      setSession(currentSession);
+      setUser(currentSession.user);
+      saveSessionToStorage(currentSession);
+    }
+  };
+
+  // Initial setup: listen for auth state changes
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (event, authSession) => {
+        setSession(authSession);
+        setUser(authSession?.user ?? null);
+        saveSessionToStorage(authSession);
+
+        if (authSession?.user) {
           setTimeout(() => {
-            fetchUserRole(session.user.id).then(setRole);
+            fetchUserRole(authSession.user.id).then(setRole);
           }, 0);
         } else {
           setRole(null);
@@ -54,18 +87,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     );
 
-    // Then check for existing session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
+    // Check for existing session
+    supabase.auth.getSession().then(({ data: { session: existingSession } }) => {
+      setSession(existingSession);
+      setUser(existingSession?.user ?? null);
+      saveSessionToStorage(existingSession);
       
-      if (session?.user) {
-        fetchUserRole(session.user.id).then(setRole);
+      if (existingSession?.user) {
+        fetchUserRole(existingSession.user.id).then(setRole);
       }
       setIsLoading(false);
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, []);
+
+  // Periodic session refresh
+  useEffect(() => {
+    const refreshInterval = setInterval(async () => {
+      const { data: { session: currentSession } } = await supabase.auth.getSession();
+      if (currentSession) {
+        await refreshSession();
+      }
+    }, REFRESH_INTERVAL);
+
+    return () => {
+      clearInterval(refreshInterval);
+    };
   }, []);
 
   const signIn = async (email: string, password: string) => {
@@ -81,6 +131,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
     setSession(null);
     setRole(null);
+    saveSessionToStorage(null);
   };
 
   return (

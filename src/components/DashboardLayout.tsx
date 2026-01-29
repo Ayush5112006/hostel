@@ -1,4 +1,4 @@
-import { ReactNode } from 'react';
+import { ReactNode, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
@@ -9,7 +9,9 @@ import {
   ClipboardList, 
   CalendarCheck,
   LayoutDashboard,
-  User
+  User,
+  Menu,
+  X
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { NavLink } from 'react-router-dom';
@@ -21,6 +23,7 @@ interface DashboardLayoutProps {
 export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const { user, role, signOut } = useAuth();
   const navigate = useNavigate();
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const handleSignOut = async () => {
     await signOut();
@@ -48,6 +51,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     if (role === 'super_admin') {
       items.push(
         { to: '/manage-users', icon: Users, label: 'Manage Users' },
+        { to: '/manage-attendance', icon: CalendarCheck, label: 'Manage Attendance' },
         { to: '/reports', icon: ClipboardList, label: 'Reports' }
       );
     } else if (role === 'admin') {
@@ -64,16 +68,44 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   };
 
   return (
-    <div className="min-h-screen bg-background flex">
+    <div className="min-h-screen bg-background flex flex-col md:flex-row">
+      {/* Mobile Header */}
+      <div className="md:hidden bg-card border-b border-border p-4 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <img src="/image.jpeg" alt="Atul Vidyajyot Logo" className="w-10 h-10 bg-white rounded-xl object-contain" />
+          <div>
+            <h1 className="font-display font-semibold text-lg">Atul Vidyajyot</h1>
+          </div>
+        </div>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => setSidebarOpen(!sidebarOpen)}
+        >
+          {sidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+        </Button>
+      </div>
+
+      {/* Mobile Overlay */}
+      {sidebarOpen && (
+        <div 
+          className="md:hidden fixed inset-0 bg-black/50 z-40"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
       {/* Sidebar */}
-      <aside className="w-64 bg-card border-r border-border flex flex-col">
-        <div className="p-6 border-b border-border">
+      <aside className={cn(
+        "w-64 bg-card border-r border-border flex flex-col transition-all duration-300 z-50",
+        "fixed md:relative inset-y-0 left-0 md:translate-x-0",
+        sidebarOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
+      )}>
+        {/* Desktop Header */}
+        <div className="hidden md:block p-6 border-b border-border">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center">
-              <Utensils className="w-5 h-5 text-primary-foreground" />
-            </div>
+            <img src="/image.jpeg" alt="Atul Vidyajyot Logo" className="w-10 h-10 bg-white rounded-xl object-contain" />
             <div>
-              <h1 className="font-display font-semibold text-lg">Hostel Mess</h1>
+              <h1 className="font-display font-semibold text-lg">Atul Vidyajyot</h1>
               <p className="text-xs text-muted-foreground">Management System</p>
             </div>
           </div>
@@ -84,6 +116,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
             <NavLink
               key={item.to}
               to={item.to}
+              onClick={() => setSidebarOpen(false)}
               className={({ isActive }) =>
                 cn(
                   'flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors',
@@ -101,7 +134,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
 
         <div className="p-4 border-t border-border">
           <div className="flex items-center gap-3 mb-4 px-2">
-            <div className="w-10 h-10 bg-secondary rounded-full flex items-center justify-center">
+            <div className="w-10 h-10 bg-secondary rounded-full flex items-center justify-center flex-shrink-0">
               <User className="w-5 h-5 text-secondary-foreground" />
             </div>
             <div className="flex-1 min-w-0">
@@ -111,7 +144,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
           </div>
           <Button
             variant="outline"
-            className="w-full justify-start"
+            className="w-full justify-start text-sm"
             onClick={handleSignOut}
           >
             <LogOut className="w-4 h-4 mr-2" />
@@ -121,7 +154,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 overflow-auto">
+      <main className="flex-1 overflow-auto w-full">
         {children}
       </main>
     </div>

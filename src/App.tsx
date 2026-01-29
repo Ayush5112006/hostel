@@ -8,6 +8,7 @@ import ProtectedRoute from "@/components/ProtectedRoute";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import ManageUsers from "./pages/ManageUsers";
+import ManageAttendance from "./pages/ManageAttendance";
 import Reports from "./pages/Reports";
 import StudentAttendance from "./pages/StudentAttendance";
 import NotFound from "./pages/NotFound";
@@ -22,12 +23,12 @@ const App = () => (
       <BrowserRouter>
         <AuthProvider>
           <Routes>
-            <Route path="/" element={<Navigate to="/login" replace />} />
+            <Route path="/" element={<Navigate to="/dashboard" replace />} />
             <Route path="/login" element={<Login />} />
             <Route
               path="/dashboard"
               element={
-                <ProtectedRoute>
+                <ProtectedRoute requireAuth={false}>
                   <Dashboard />
                 </ProtectedRoute>
               }
@@ -35,15 +36,23 @@ const App = () => (
             <Route
               path="/manage-users"
               element={
-                <ProtectedRoute>
+                <ProtectedRoute requireAuth={false}>
                   <ManageUsers />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/manage-attendance"
+              element={
+                <ProtectedRoute requireAuth={false}>
+                  <ManageAttendance />
                 </ProtectedRoute>
               }
             />
             <Route
               path="/reports"
               element={
-                <ProtectedRoute>
+                <ProtectedRoute requireAuth={false}>
                   <Reports />
                 </ProtectedRoute>
               }
@@ -51,7 +60,7 @@ const App = () => (
             <Route
               path="/attendance"
               element={
-                <ProtectedRoute>
+                <ProtectedRoute requireAuth={false}>
                   <StudentAttendance />
                 </ProtectedRoute>
               }
