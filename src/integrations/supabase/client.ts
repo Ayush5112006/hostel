@@ -5,20 +5,19 @@ import type { Database } from './types';
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 
-// Custom storage with cookie support (2 days = 172800 seconds)
-const COOKIE_MAX_AGE = 2 * 24 * 60 * 60; // 2 days in seconds
+// Keep persistent sessions in localStorage (approx. 2 days semantics handled by Supabase tokens)
 
 // Import the supabase client like this:
 // import { supabase } from "@/integrations/supabase/client";
 
 export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
   auth: {
+    // Use browser localStorage for session persistence
     storage: localStorage,
+    // Keep sessions persisted across reloads
     persistSession: true,
+    // Allow automatic token refresh when needed
     autoRefreshToken: true,
-    detectSessionInUrl: true,
-    flowType: 'pkce',
-    storageKey: 'sb-auth-token',
   },
   global: {
     headers: {

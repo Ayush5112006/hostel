@@ -1,6 +1,7 @@
 import { useState, useEffect, createContext, useContext, ReactNode } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
+import { validateStoredSession, clearStoredSession } from '@/lib/session';
 
 type AppRole = 'super_admin' | 'admin' | 'student';
 
@@ -46,27 +47,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         session: sessionData,
         expiresAt: Date.now() + SESSION_MAX_AGE * 1000,
       };
-      localStorage.setItem('sb-auth-token', JSON.stringify(sessionInfo));
-      
-      // Set cookie for 2 days
-      const expires = new Date();
-      expires.setDate(expires.getDate() + 2);
-      document.cookie = `sb-auth-session=${JSON.stringify(sessionInfo)}; expires=${expires.toUTCString()}; path=/; SameSite=Lax`;
+      try {
+        localStorage.setItem('sb-auth-token', JSON.stringify(sessionInfo));
+      } catch (e) {
+        console.warn('Failed to save session to localStorage', e);
+      }
     } else {
-      localStorage.removeItem('sb-auth-token');
-      document.cookie = 'sb-auth-session=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/';
+      try {
+        localStorage.removeItem('sb-auth-token');
+      } catch (e) {
+        // ignore
+      }
     }
   };
 
-  // Function to refresh session
-  const refreshSession = async () => {
-    const { data: { session: currentSession }, error } = await supabase.auth.refreshSession();
-    if (!error && currentSession) {
-      setSession(currentSession);
-      setUser(currentSession.user);
-      saveSessionToStorage(currentSession);
-    }
-  };
+  // No explicit refreshSession: rely on supabase client's autoRefreshToken and periodic getSession check
 
   // Initial setup: listen for auth state changes
   useEffect(() => {
@@ -87,7 +82,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     );
 
-    // Check for existing session
+    // Validate any stored session first; cleanup if expired or malformed
+    try {
+      const ok = validateStoredSession();
+      if (!ok) {
+        clearStoredSession();
+      }
+    } catch (e) {
+      clearStoredSession();
+    }
+
+    // Check for existing session from supabase
     supabase.auth.getSession().then(({ data: { session: existingSession } }) => {
       setSession(existingSession);
       setUser(existingSession?.user ?? null);
@@ -104,12 +109,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  // Periodic session refresh
+  // Periodic session check to keep local state in sync
   useEffect(() => {
     const refreshInterval = setInterval(async () => {
-      const { data: { session: currentSession } } = await supabase.auth.getSession();
-      if (currentSession) {
-        await refreshSession();
+      try {
+        const { data } = await supabase.auth.getSession();
+        const currentSession = (data as any)?.session ?? null;
+        if (currentSession) {
+          setSession(currentSession);
+          setUser(currentSession.user ?? null);
+          saveSessionToStorage(currentSession);
+        }
+      } catch (e) {
+        console.warn('Error checking session', e);
       }
     }, REFRESH_INTERVAL);
 
