@@ -72,7 +72,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
       {/* Mobile Header */}
         <div className="md:hidden bg-card border-b border-border p-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <img src="/logo.svg" alt="App logo" className="w-10 h-10 rounded-xl object-contain bg-white p-1" />
+          <img src="/image.jpeg" alt="Atul Vidyajyot Logo" className="w-10 h-10 rounded-xl object-contain bg-white p-1" />
           <div>
             <h1 className="font-display font-semibold text-lg">Atul Vidyajyot</h1>
           </div>
@@ -103,7 +103,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
         {/* Desktop Header */}
         <div className="hidden md:block p-6 border-b border-border">
           <div className="flex items-center gap-3">
-            <img src="/logo.svg" alt="App logo" className="w-10 h-10 rounded-xl object-contain bg-white p-1" />
+            <img src="/image.jpeg" alt="Atul Vidyajyot Logo" className="w-10 h-10 rounded-xl object-contain bg-white p-1" />
             <div>
               <h1 className="font-display font-semibold text-lg">Atul Vidyajyot</h1>
               <p className="text-xs text-muted-foreground">Management System</p>
