@@ -9,8 +9,8 @@
 @layer base {
   :root {
     /* Warm institutional palette */
-    --background: 40 25% 97%;
-    --foreground: 25 30% 15%;
+    --background: 0 0% 100%;
+    --foreground: 222.2 47.4% 11.2%;
 
     --card: 0 0% 100%;
     --card-foreground: 25 30% 15%;
@@ -18,9 +18,8 @@
     --popover: 0 0% 100%;
     --popover-foreground: 25 30% 15%;
 
-    /* Warm terracotta primary */
-    --primary: 16 65% 50%;
-    --primary-foreground: 0 0% 100%;
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
 
     /* Soft cream secondary */
     --secondary: 40 30% 92%;
@@ -29,9 +28,8 @@
     --muted: 40 20% 94%;
     --muted-foreground: 25 15% 45%;
 
-    /* Warm amber accent */
-    --accent: 35 90% 55%;
-    --accent-foreground: 25 30% 15%;
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 222.2 47.4% 11.2%;
 
     --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 100%;
@@ -66,6 +64,16 @@
     /* Custom gradients */
     --gradient-warm: linear-gradient(135deg, hsl(16 65% 50%) 0%, hsl(35 90% 55%) 100%);
     --gradient-card: linear-gradient(180deg, hsl(0 0% 100%) 0%, hsl(40 25% 98%) 100%);
+    --primary: 222.2 47.4% 11.2%;
+    --primary-foreground: 210 40% 98%;
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 222.2 47.4% 11.2%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+    --ring: 215 20.2% 65.1%;
+    --radius: 0.5rem;
   }
 
   .dark {
