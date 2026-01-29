@@ -28,7 +28,7 @@ const App = () => (
             <Route
               path="/dashboard"
               element={
-                <ProtectedRoute requireAuth={false}>
+                <ProtectedRoute requireAuth={true}>
                   <Dashboard />
                 </ProtectedRoute>
               }
@@ -36,7 +36,7 @@ const App = () => (
             <Route
               path="/manage-users"
               element={
-                <ProtectedRoute requireAuth={false}>
+                <ProtectedRoute requireAuth={true}>
                   <ManageUsers />
                 </ProtectedRoute>
               }
@@ -44,7 +44,7 @@ const App = () => (
             <Route
               path="/manage-attendance"
               element={
-                <ProtectedRoute requireAuth={false}>
+                <ProtectedRoute requireAuth={true}>
                   <ManageAttendance />
                 </ProtectedRoute>
               }
@@ -52,7 +52,7 @@ const App = () => (
             <Route
               path="/reports"
               element={
-                <ProtectedRoute requireAuth={false}>
+                <ProtectedRoute requireAuth={true}>
                   <Reports />
                 </ProtectedRoute>
               }
@@ -60,7 +60,7 @@ const App = () => (
             <Route
               path="/attendance"
               element={
-                <ProtectedRoute requireAuth={false}>
+                <ProtectedRoute requireAuth={true}>
                   <StudentAttendance />
                 </ProtectedRoute>
               }
