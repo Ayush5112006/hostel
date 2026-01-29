@@ -21,8 +21,8 @@ const App = () => (
     <TooltipProvider>
       <Toaster />
       <Sonner />
-      <AppHeader />
       <BrowserRouter>
+        <AppHeader />
         <AuthProvider>
           <Routes>
             <Route path="/" element={<Navigate to="/login" replace />} />
